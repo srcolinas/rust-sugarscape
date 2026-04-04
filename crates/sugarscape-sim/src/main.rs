@@ -1,11 +1,9 @@
-mod config;
-
 use std::{fs::File, io::BufReader, path::PathBuf};
 
 use anyhow::{Context, Result};
 use clap::Parser;
 
-use config::SimulationConfig;
+use sugarscape_sim::{run_simulation, SimulationConfig};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -26,7 +24,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     let config = read_config(&cli.config)
         .with_context(|| format!("Failed to read config from {}", cli.config.display()))?;
-    println!("{:?}", config);
+    run_simulation(config);
     Ok(())
 }
 
