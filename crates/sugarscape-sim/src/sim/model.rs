@@ -30,7 +30,7 @@ impl Model {
         }
     }
     fn init_capacities(world: &WorldParams) -> Vec<f32> {
-        let max_capacity = world.capacity_distribution.max_capacity as f32;
+        let max_capacity = world.capacity_distribution.max_capacity;
         let reduction_factor = world.capacity_distribution.reduction_factor;
         let num_cells = world.width as usize * world.height as usize;
 
@@ -86,7 +86,6 @@ mod tests {
     use approx::assert_relative_eq;
     use p_test::p_test;
 
-    /// [`Model::new`] using default [`WorldParams`] / [`AgentParams`]; override fields with `..w` / `..a`.
     fn create_model(
         customize: impl FnOnce(WorldParams, AgentParams) -> (WorldParams, AgentParams),
     ) -> Model {
