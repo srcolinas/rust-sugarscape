@@ -154,6 +154,29 @@ mod tests {
             assert_relative_eq!(capacities[idx], distance, epsilon = epsilon);
         }
     }
+
+    #[p_test(
+        (10.0, 0.5, 9.292893),
+    )]
+    fn test_reduction_factor_diagonal_distance(
+        max_capacity: f32,
+        reduction_factor: f32,
+        distance: f32,
+    ) {
+        let x: u8 = 1;
+        let y: u8 = 1;
+        let capacities = compute_reduced_capacities(max_capacity, reduction_factor, 3, 3, x, y);
+        let epsilon = 1e-5;
+
+        let deltas: [(i8, i8); 4] = [(-1, -1), (1, -1), (-1, 1), (1, 1)];
+        for (dx, dy) in deltas.iter() {
+            let cx = u8::try_from(x as i8 + dx).unwrap();
+            let cy = u8::try_from(y as i8 + dy).unwrap();
+            let idx = coord_to_idx(cx, cy, 3);
+            assert_relative_eq!(capacities[idx], distance, epsilon = epsilon);
+        }
+    }
+
     fn compute_reduced_capacities(
         max_capacity: f32,
         reduction_factor: f32,
