@@ -3,13 +3,13 @@ world:
   height: 50
   growth_rate: 1
   capacity_distribution:
-    uniform:
-      min: 1
-      max: 4
-  initial_level_distribution:
-    uniform:
-      min: 0
-      max: 0
+    peaks:
+      - x: 10
+        y: 40
+      - x: 40
+        y: 10
+    max_capacity: 4
+    reduction_factor: 0.5
 
 agents:
   count: 400
