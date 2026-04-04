@@ -15,3 +15,6 @@ parquet = { version = "54", default-features = false, features = ["arrow"] }
 [dev-dependencies]
 assert_cmd = "2"
 tempfile = "3"
+
+[lints.rust]
+dead_code = "allow"
