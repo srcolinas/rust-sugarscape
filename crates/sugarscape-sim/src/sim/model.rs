@@ -108,83 +108,51 @@ mod tests {
     }
 
     #[p_test(
-        (0, 0, 10.0),
-        (2, 2, 10.0),
+        "peak(1,1)", (2.0, 0.5, 1, 1, 2.0),
+        "peak(3,3)", (2.0, 0.5, 3, 3, 2.0),
+        "orthogonal(0,1)", (2.0, 0.5, 0, 1, 1.5),
+        "orthogonal(1,0)", (2.0, 0.5, 1, 0, 1.5),
+        "orthogonal(1,2)", (2.0, 0.5, 1, 2, 1.5),
+        "orthogonal(2,1)", (2.0, 0.5, 2, 1, 1.5),
+        "orthogonal(2,3)", (2.0, 0.5, 2, 3, 1.5),
+        "orthogonal(3,2)", (2.0, 0.5, 3, 2, 1.5),
+        "orthogonal(3,4)", (2.0, 0.5, 3, 4, 1.5),
+        "orthogonal(4,3)", (2.0, 0.5, 4, 3, 1.5),
+        "diagonal(0,0)", (2.0, 0.5, 0, 0, 1.292893),
+        "diagonal(2,0)", (2.0, 0.5, 2, 0, 1.292893),
+        "diagonal(0,2)", (2.0, 0.5, 0, 2, 1.292893),
+        "diagonal(2,2)", (2.0, 0.5, 2, 2, 1.292893),
+        "diagonal(4,2)", (2.0, 0.5, 4, 2, 1.292893),
+        "diagonal(2,4)", (2.0, 0.5, 2, 4, 1.292893),
+        "diagonal(4,4)", (2.0, 0.5, 4, 4, 1.292893),
+        // Remaining non-peak cells (nearest-peak distance 2, √5, or √10)
+        "dist2(3,1)", (2.0, 0.5, 3, 1, 1.0),
+        "dist2(1,3)", (2.0, 0.5, 1, 3, 1.0),
+        "dist_sqrt5(3,0)", (2.0, 0.5, 3, 0, 0.881966),
+        "dist_sqrt5(4,1)", (2.0, 0.5, 4, 1, 0.881966),
+        "dist_sqrt5(0,3)", (2.0, 0.5, 0, 3, 0.881966),
+        "dist_sqrt5(1,4)", (2.0, 0.5, 1, 4, 0.881966),
+        "dist_sqrt10(4,0)", (2.0, 0.5, 4, 0, 0.418861),
+        "dist_sqrt10(0,4)", (2.0, 0.5, 0, 4, 0.418861),
     )]
-    fn test_peaks_have_max_capacity(x: u8, y: u8, max_capacity: f32) {
-        let width = 10;
-        let model = create_model(|w, a| {
-            (
-                WorldParams {
-                    width,
-                    height: 10,
-                    capacity_distribution: CellCapacityDistribution {
-                        peaks: vec![CellPosition { x, y }],
-                        max_capacity,
-                        reduction_factor: 1.0,
-                    },
-                    ..w
-                },
-                a,
-            )
-        });
-
-        let idx = coord_to_idx(x, y, width);
-        assert_eq!(model.capacities[idx], max_capacity);
-    }
-
-    #[p_test(
-        (10.0, 0.5, 9.5),
-    )]
-    fn test_reduction_factor_orthogonal_distance(
+    fn test_capacities_for_two_peaks_on_a_5x5_grid(
         max_capacity: f32,
         reduction_factor: f32,
-        distance: f32,
+        x: u8,
+        y: u8,
+        expected_value: f32,
     ) {
-        let x: u8 = 1;
-        let y: u8 = 1;
-        let capacities = compute_reduced_capacities(max_capacity, reduction_factor, 3, 3, x, y);
-        let epsilon = 1e-5;
+        // 5x5: P at (1,1) and (3,3); x→ columns, y↓ rows
+        //       x: 0 1 2 3 4
+        //     y0: . . . . .
+        //     y1: . P . . .
+        //     y2: . . . . .
+        //     y3: . . . P .
+        //     y4: . . . . .
 
-        let deltas: [(i8, i8); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
-        for (dx, dy) in deltas.iter() {
-            let cx = u8::try_from(x as i8 + dx).unwrap();
-            let cy = u8::try_from(y as i8 + dy).unwrap();
-            let idx = coord_to_idx(cx, cy, 3);
-            assert_relative_eq!(capacities[idx], distance, epsilon = epsilon);
-        }
-    }
-
-    #[p_test(
-        (10.0, 0.5, 9.292893),
-    )]
-    fn test_reduction_factor_diagonal_distance(
-        max_capacity: f32,
-        reduction_factor: f32,
-        distance: f32,
-    ) {
-        let x: u8 = 1;
-        let y: u8 = 1;
-        let capacities = compute_reduced_capacities(max_capacity, reduction_factor, 3, 3, x, y);
-        let epsilon = 1e-5;
-
-        let deltas: [(i8, i8); 4] = [(-1, -1), (1, -1), (-1, 1), (1, 1)];
-        for (dx, dy) in deltas.iter() {
-            let cx = u8::try_from(x as i8 + dx).unwrap();
-            let cy = u8::try_from(y as i8 + dy).unwrap();
-            let idx = coord_to_idx(cx, cy, 3);
-            assert_relative_eq!(capacities[idx], distance, epsilon = epsilon);
-        }
-    }
-
-    fn compute_reduced_capacities(
-        max_capacity: f32,
-        reduction_factor: f32,
-        width: u8,
-        height: u8,
-        px: u8,
-        py: u8,
-    ) -> Vec<f32> {
+        let width = 5;
+        let height = 5;
+        let peaks = vec![CellPosition { x: 1, y: 1 }, CellPosition { x: 3, y: 3 }];
         let model = create_model(|w, a| {
             (
                 WorldParams {
@@ -193,13 +161,18 @@ mod tests {
                     capacity_distribution: CellCapacityDistribution {
                         reduction_factor,
                         max_capacity,
-                        peaks: vec![CellPosition { x: px, y: py }],
+                        peaks: peaks
+                            .iter()
+                            .map(|p| CellPosition { x: p.x, y: p.y })
+                            .collect(),
                     },
                     ..w
                 },
                 a,
             )
         });
-        model.capacities
+        let capacities = model.capacities;
+        let idx = coord_to_idx(x, y, width);
+        assert_relative_eq!(capacities[idx], expected_value, epsilon = 1e-5);
     }
 }
