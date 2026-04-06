@@ -3,7 +3,7 @@ use std::{fs::File, io::BufReader, path::PathBuf};
 use anyhow::{Context, Result};
 use clap::Parser;
 
-use sugarscape_sim::{run_simulation, SimulationConfig};
+use sugarscape_sim::{Model, SimulationConfig};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -34,4 +34,11 @@ fn read_config(path: &PathBuf) -> Result<SimulationConfig> {
     let de = serde_yaml::Deserializer::from_reader(reader);
     let config = serde_yaml::with::singleton_map_recursive::deserialize(de)?;
     Ok(config)
+}
+
+pub fn run_simulation(config: SimulationConfig) {
+    let mut model = Model::new(config.world, config.agents);
+    for _ in 0..config.run.iterations {
+        model.step();
+    }
 }

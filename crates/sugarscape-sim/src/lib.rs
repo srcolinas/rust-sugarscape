@@ -1,5 +1,5 @@
 mod config;
-mod sim;
+mod model;
 
 pub use config::SimulationConfig;
-pub use sim::run_simulation;
+pub use model::Model;
