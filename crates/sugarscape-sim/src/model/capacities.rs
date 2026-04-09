@@ -42,17 +42,10 @@ mod tests {
     use approx::assert_relative_eq;
     use p_test::p_test;
 
-    use crate::config::{AgentParams, CellCapacityDistribution, CellPosition, WorldParams};
+    use crate::config::{CellCapacityDistribution, CellPosition, WorldParams};
 
     use super::super::geometry::coord_to_idx;
     use super::super::Model;
-
-    fn create_model(
-        customize: impl FnOnce(WorldParams, AgentParams) -> (WorldParams, AgentParams),
-    ) -> Model {
-        let (world, agents) = customize(WorldParams::default(), AgentParams::default());
-        Model::new(world, agents)
-    }
 
     #[p_test(
         "peak(1,1)", (2.0, 0.5, 1, 1, 2.0),
@@ -99,8 +92,8 @@ mod tests {
 
         let width = 5;
         let height = 5;
-        let peaks = vec![CellPosition { x: 1, y: 1 }, CellPosition { x: 3, y: 3 }];
-        let model = create_model(|w, a| {
+        let peaks = [CellPosition { x: 1, y: 1 }, CellPosition { x: 3, y: 3 }];
+        let model = Model::from_default(|w, a| {
             (
                 WorldParams {
                     width,
