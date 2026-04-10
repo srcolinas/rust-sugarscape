@@ -2,20 +2,22 @@ use std::collections::HashSet;
 
 use crate::config::{AgentParams, WorldParams};
 
-mod ages;
-mod capacities;
 mod geometry;
+mod init_agents;
+mod init_world;
 mod step;
-mod visions;
-mod wealths;
 
 #[derive(Debug, Default)]
 pub struct Model {
     // NOTE: Given that two agents cannot occupy the same cell, we can
     // have information about all agents in a single vector. We will
     // keep keep track of empty cells in a hash set for fast lookup.
+
+    // world-specific data
     capacities: Vec<f32>,
     levels: Vec<i32>,
+
+    // agent-specific data
     wealths: Vec<i32>,
     visions: Vec<i32>,
     ages: Vec<i32>,
@@ -23,23 +25,24 @@ pub struct Model {
     width: u8,
     height: u8,
 
-    empty_cells: HashSet<(usize, usize)>,
+    empty_cells: HashSet<usize>,
 }
 
 impl Model {
     pub fn new(world: WorldParams, agents: AgentParams) -> Self {
-        let capacities = Model::init_capacities(&world);
+        let (capacities, levels) = Model::init_world(&world);
         let num_cells = capacities.len();
+        let (wealths, visions, ages, empty_cells) = Model::init_agents(&agents, num_cells);
+
         Model {
             capacities,
-            levels: vec![0; num_cells],
-            wealths: Model::init_wealths(&agents, num_cells),
-            visions: Model::init_visions(&agents, num_cells),
-            ages: Model::init_ages(&agents, num_cells),
+            levels,
+            wealths,
+            visions,
+            ages,
             width: world.width,
             height: world.height,
-
-            empty_cells: HashSet::new(),
+            empty_cells,
         }
     }
 

@@ -6,7 +6,7 @@ use super::geometry::{coord_to_idx, euclidean_distance};
 use super::Model;
 
 impl Model {
-    pub(super) fn init_capacities(world: &WorldParams) -> Vec<f32> {
+    pub(super) fn init_world(world: &WorldParams) -> (Vec<f32>, Vec<i32>) {
         let max_capacity = world.capacity_distribution.max_capacity;
         let reduction_factor = world.capacity_distribution.reduction_factor;
         let num_cells = world.width as usize * world.height as usize;
@@ -33,7 +33,7 @@ impl Model {
                 }
             }
         }
-        capacities
+        (capacities, vec![0; num_cells])
     }
 }
 
