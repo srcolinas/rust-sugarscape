@@ -71,7 +71,7 @@ impl Default for RandomDistribution {
 
 #[derive(Debug, Deserialize, Default)]
 pub struct AgentParams {
-    pub count: u32,
+    pub count: usize,
     pub wealth_distribution: RandomDistribution,
     pub metabolic_rate_distribution: RandomDistribution,
     pub vision_distribution: RandomDistribution,

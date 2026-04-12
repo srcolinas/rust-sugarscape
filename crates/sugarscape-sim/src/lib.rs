@@ -1,5 +1,7 @@
+mod agents;
 mod config;
-mod model;
+mod world;
 
+pub use agents::Agents;
 pub use config::SimulationConfig;
-pub use model::Model;
+pub use world::World;

@@ -1,12 +1,20 @@
 use std::collections::HashSet;
 
-use crate::config::WorldParams;
+use crate::config::{AgentParams, WorldParams};
 
-use super::geometry::{coord_to_idx, euclidean_distance};
-use super::Model;
+#[derive(Debug)]
+pub struct World {
+    capacities: Vec<f32>,
+    levels: Vec<i32>,
 
-impl Model {
-    pub(super) fn init_world(world: &WorldParams) -> (Vec<f32>, Vec<i32>) {
+    width: u8,
+    height: u8,
+
+    empty_cells: HashSet<usize>,
+}
+
+impl World {
+    pub fn new(world: &WorldParams) -> Self {
         let max_capacity = world.capacity_distribution.max_capacity;
         let reduction_factor = world.capacity_distribution.reduction_factor;
         let num_cells = world.width as usize * world.height as usize;
@@ -33,19 +41,51 @@ impl Model {
                 }
             }
         }
-        (capacities, vec![0; num_cells])
+        World {
+            capacities,
+            levels: vec![0; num_cells],
+            width: world.width,
+            height: world.height,
+            empty_cells: HashSet::new(),
+        }
     }
+
+    pub fn populate(&self, _agents: &AgentParams) {
+        // let mut empty_cells = HashSet::with_capacity(num_cells - agents.count as usize);
+        // let range = 0..(num_cells - 1);
+        // for i in range.sample(&mut rand::rng(), num_cells - agents.count as usize) {
+        //     empty_cells.insert(i);
+        // }
+        println!("populating the world")
+    }
+
+    pub fn step(&self) {
+        println!("Runing an step");
+    }
+}
+
+#[inline]
+fn coord_to_idx(x: u8, y: u8, width: u8) -> usize {
+    x as usize + y as usize * width as usize
+}
+
+#[inline]
+fn euclidean_distance(x1: u8, y1: u8, x2: u8, y2: u8) -> f32 {
+    ((x1 as f32 - x2 as f32).powi(2) + (y1 as f32 - y2 as f32).powi(2)).sqrt()
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use approx::assert_relative_eq;
     use p_test::p_test;
 
     use crate::config::{CellCapacityDistribution, CellPosition, WorldParams};
 
-    use super::super::geometry::coord_to_idx;
-    use super::super::Model;
+    fn from_defaults(customize: impl FnOnce(WorldParams) -> WorldParams) -> World {
+        let params = customize(WorldParams::default());
+        World::new(&params)
+    }
 
     #[p_test(
         "peak(1,1)", (2.0, 0.5, 1, 1, 2.0),
@@ -93,26 +133,42 @@ mod tests {
         let width = 5;
         let height = 5;
         let peaks = [CellPosition { x: 1, y: 1 }, CellPosition { x: 3, y: 3 }];
-        let model = Model::from_default(|w, a| {
-            (
-                WorldParams {
-                    width,
-                    height,
-                    capacity_distribution: CellCapacityDistribution {
-                        reduction_factor,
-                        max_capacity,
-                        peaks: peaks
-                            .iter()
-                            .map(|p| CellPosition { x: p.x, y: p.y })
-                            .collect(),
-                    },
-                    ..w
-                },
-                a,
-            )
+        let world = from_defaults(|w| WorldParams {
+            width,
+            height,
+            capacity_distribution: CellCapacityDistribution {
+                reduction_factor,
+                max_capacity,
+                peaks: peaks
+                    .iter()
+                    .map(|p| CellPosition { x: p.x, y: p.y })
+                    .collect(),
+            },
+            ..w
         });
-        let capacities = model.capacities;
+        let capacities = world.capacities;
         let idx = coord_to_idx(x, y, width);
         assert_relative_eq!(capacities[idx], expected_value, epsilon = 1e-5);
     }
+
+    //     // #[p_test((5, 5, 10, 15), (2, 3, 5, 1), (2, 2, 4, 0))]
+    //     #[p_test((5, 5, 10, 15))]
+    //     fn number_of_empty_cells_is_correct(
+    //         width: u8,
+    //         height: u8,
+    //         num_agents: u32,
+    //         num_empty_cells: usize,
+    //     ) {
+    //         let model = Model::from_default(|w, a| {
+    //             (
+    //                 WorldParams { width, height, ..w },
+    //                 AgentParams {
+    //                     count: num_agents,
+    //                     ..a
+    //                 },
+    //             )
+    //         });
+    //         let empty_cells = model.empty_cells;
+    //         assert_eq!(empty_cells.len(), num_empty_cells);
+    //     }
 }
