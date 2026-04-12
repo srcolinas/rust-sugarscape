@@ -13,7 +13,8 @@ struct CellId(usize);
 #[derive(Debug)]
 pub struct World {
     capacities: Vec<f32>,
-    levels: Vec<i32>,
+    levels: Vec<f32>,
+    growth_rate: f32,
 
     width: u8,
     height: u8,
@@ -52,7 +53,8 @@ impl World {
         }
         World {
             capacities,
-            levels: vec![0; num_cells],
+            levels: vec![0.0; num_cells],
+            growth_rate: world.growth_rate as f32,
             width: world.width,
             height: world.height,
             locations: HashMap::new(),
@@ -71,8 +73,15 @@ impl World {
         }
     }
 
-    pub fn step(&self) {
-        println!("Runing an step");
+    pub fn step(&mut self) {
+        self.growback_rule();
+    }
+
+    fn growback_rule(&mut self) {
+        for (cell_idx, level) in self.levels.iter_mut().enumerate() {
+            let capacity = self.capacities[cell_idx];
+            *level = f32::max(capacity, *level + self.growth_rate as f32);
+        }
     }
 }
 
@@ -171,5 +180,25 @@ mod tests {
             ..AgentParams::default()
         });
         assert_eq!(world.locations.len(), num_agents);
+    }
+
+    fn test_growback_rule_doesnot_go_beyond_max_capacity() {
+        let mut world = World::new(&WorldParams {
+            width: 2,
+            height: 2,
+            // Use a growth rate that ensure next step will go beyond max capacity if
+            // not capped properly by the implementation of the growback rule.
+            growth_rate: 3,
+            capacity_distribution: CellCapacityDistribution {
+                peaks: vec![CellPosition { x: 0, y: 0 }],
+                // Using a reduction factor that is greater than the
+                // minimun distance between a peak and a non-peak cell,
+                // ensures that capacity is cero except for the peak cells.
+                max_capacity: 1.0,
+                reduction_factor: 3.0,
+            },
+        });
+        world.step();
+        assert_eq!(world.levels, vec![1.0, 0.0, 0.0, 0.0]);
     }
 }
