@@ -37,7 +37,7 @@ fn read_config(path: &PathBuf) -> Result<SimulationConfig> {
 }
 
 pub fn run_simulation(config: SimulationConfig) {
-    let world = World::new(&config.world);
+    let mut world = World::new(&config.world);
     world.populate(&config.agents);
     for _ in 0..config.run.iterations {
         world.step();
