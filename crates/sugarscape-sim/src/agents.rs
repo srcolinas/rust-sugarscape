@@ -48,9 +48,11 @@ impl Agents {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     use p_test::p_test;
 
-    use crate::{config::AgentParams, Agents};
+    use crate::config::AgentParams;
 
     fn from_defaults(customize: impl FnOnce(AgentParams) -> AgentParams) -> Agents {
         let params = customize(AgentParams::default());

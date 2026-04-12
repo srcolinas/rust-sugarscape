@@ -21,10 +21,11 @@ pub struct World {
 
     // Cells not in the map are empty.
     locations: HashMap<CellId, AgentId>,
+    agents: Agents,
 }
 
 impl World {
-    pub fn new(world: &WorldParams) -> Self {
+    pub fn new(world: &WorldParams, agents: &AgentParams) -> Self {
         let max_capacity = world.capacity_distribution.max_capacity;
         let reduction_factor = world.capacity_distribution.reduction_factor;
         let num_cells = world.width as usize * world.height as usize;
@@ -51,37 +52,58 @@ impl World {
                 }
             }
         }
+
+        let agents = Agents::new(&agents);
         World {
             capacities,
             levels: vec![0.0; num_cells],
             growth_rate: world.growth_rate as f32,
             width: world.width,
             height: world.height,
-            locations: HashMap::new(),
+            locations: World::populate(&agents, num_cells),
+            agents,
         }
     }
 
-    pub fn populate(&mut self, agents: &AgentParams) {
-        let agents = Agents::new(agents);
-        let num_cells = self.width as usize * self.height as usize;
+    fn populate(agents: &Agents, num_cells: usize) -> HashMap<CellId, AgentId> {
+        let mut locations = HashMap::new();
         for (cell_idx, agent_idx) in (0..num_cells)
             .sample(&mut rand::rng(), agents.count)
             .iter()
             .enumerate()
         {
-            self.locations.insert(CellId(cell_idx), AgentId(*agent_idx));
+            locations.insert(CellId(cell_idx), AgentId(*agent_idx));
         }
+        locations
     }
 
     pub fn step(&mut self) {
         self.growback_rule();
+        self.movement_rule();
+        self.replacement_rule();
     }
 
+    #[inline]
     fn growback_rule(&mut self) {
         for (cell_idx, level) in self.levels.iter_mut().enumerate() {
             let capacity = self.capacities[cell_idx];
-            *level = f32::max(capacity, *level + self.growth_rate as f32);
+            *level = f32::max(capacity, *level + self.growth_rate);
         }
+    }
+
+    #[inline]
+    fn movement_rule(&mut self) {
+        todo!()
+    }
+
+    #[inline]
+    fn select_nearby_cells(&self) {
+        todo!()
+    }
+
+    #[inline]
+    fn replacement_rule(&mut self) {
+        todo!()
     }
 }
 
@@ -103,9 +125,11 @@ mod tests {
 
     use crate::config::{CellCapacityDistribution, CellPosition, WorldParams};
 
-    fn from_defaults(customize: impl FnOnce(WorldParams) -> WorldParams) -> World {
-        let params = customize(WorldParams::default());
-        World::new(&params)
+    fn from_defaults(
+        customize: impl FnOnce((WorldParams, AgentParams)) -> (WorldParams, AgentParams),
+    ) -> World {
+        let params = customize((WorldParams::default(), AgentParams::default()));
+        World::new(&params.0, &params.1)
     }
 
     #[p_test(
@@ -154,18 +178,23 @@ mod tests {
         let width = 5;
         let height = 5;
         let peaks = [CellPosition { x: 1, y: 1 }, CellPosition { x: 3, y: 3 }];
-        let world = from_defaults(|w| WorldParams {
-            width,
-            height,
-            capacity_distribution: CellCapacityDistribution {
-                reduction_factor,
-                max_capacity,
-                peaks: peaks
-                    .iter()
-                    .map(|p| CellPosition { x: p.x, y: p.y })
-                    .collect(),
-            },
-            ..w
+        let world = from_defaults(|(w, a)| {
+            (
+                WorldParams {
+                    width,
+                    height,
+                    capacity_distribution: CellCapacityDistribution {
+                        reduction_factor,
+                        max_capacity,
+                        peaks: peaks
+                            .iter()
+                            .map(|p| CellPosition { x: p.x, y: p.y })
+                            .collect(),
+                    },
+                    ..w
+                },
+                a,
+            )
         });
         let capacities = world.capacities;
         let idx = coord_to_idx(x, y, width);
@@ -174,29 +203,38 @@ mod tests {
 
     #[p_test((5, 5, 10), (2, 3, 5), (2, 2, 4))]
     fn number_of_occupied_cells_is_correct(width: u8, height: u8, num_agents: usize) {
-        let mut world = from_defaults(|w| WorldParams { width, height, ..w });
-        world.populate(&AgentParams {
-            count: num_agents,
-            ..AgentParams::default()
+        let world = from_defaults(|(w, a)| {
+            (
+                WorldParams { width, height, ..w },
+                AgentParams {
+                    count: num_agents,
+                    ..a
+                },
+            )
         });
         assert_eq!(world.locations.len(), num_agents);
     }
 
     fn test_growback_rule_doesnot_go_beyond_max_capacity() {
-        let mut world = World::new(&WorldParams {
-            width: 2,
-            height: 2,
-            // Use a growth rate that ensure next step will go beyond max capacity if
-            // not capped properly by the implementation of the growback rule.
-            growth_rate: 3,
-            capacity_distribution: CellCapacityDistribution {
-                peaks: vec![CellPosition { x: 0, y: 0 }],
-                // Using a reduction factor that is greater than the
-                // minimun distance between a peak and a non-peak cell,
-                // ensures that capacity is cero except for the peak cells.
-                max_capacity: 1.0,
-                reduction_factor: 3.0,
-            },
+        let mut world = from_defaults(|(w, a)| {
+            (
+                WorldParams {
+                    width: 2,
+                    height: 2,
+                    // Use a growth rate that ensure next step will go beyond max capacity if
+                    // not capped properly by the implementation of the growback rule.
+                    growth_rate: 3,
+                    capacity_distribution: CellCapacityDistribution {
+                        peaks: vec![CellPosition { x: 0, y: 0 }],
+                        // Using a reduction factor that is greater than the
+                        // minimun distance between a peak and a non-peak cell,
+                        // ensures that capacity is cero except for the peak cells.
+                        max_capacity: 1.0,
+                        reduction_factor: 3.0,
+                    },
+                },
+                a,
+            )
         });
         world.step();
         assert_eq!(world.levels, vec![1.0, 0.0, 0.0, 0.0]);
