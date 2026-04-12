@@ -1,19 +1,37 @@
-use crate::config::AgentParams;
+use rand::seq::IndexedRandom;
+
+use crate::config::{AgentParams, RandomDistribution};
 
 #[derive(Debug)]
 pub struct Agents {
-    wealths: Vec<i32>,
-    visions: Vec<i32>,
-    ages: Vec<i32>,
+    wealths: Vec<u32>,
+    visions: Vec<u32>,
+    ages: Vec<u32>,
 
     pub count: usize,
 }
 
 impl Agents {
     pub fn new(agents: &AgentParams) -> Agents {
-        let wealths = vec![-1; agents.count];
-        let visions = vec![-1; agents.count];
-        let ages = vec![-1; agents.count];
+        let mut wealths: Vec<u32> = Vec::with_capacity(agents.count);
+        let mut visions: Vec<u32> = Vec::with_capacity(agents.count);
+        let mut ages: Vec<u32> = Vec::with_capacity(agents.count);
+
+        for (attribute, distribution) in [
+            (&mut wealths, &agents.wealth_distribution),
+            (&mut visions, &agents.vision_distribution),
+            (&mut ages, &agents.max_age_distribution),
+        ] {
+            match distribution {
+                RandomDistribution::Uniform { min, max } => {
+                    let possible_values: Vec<u32> = (*min..=*max).collect();
+                    let mut rng = rand::rng();
+                    for _ in 0..agents.count {
+                        attribute.push(*possible_values.choose(&mut rng).unwrap());
+                    }
+                }
+            }
+        }
 
         Agents {
             wealths,
@@ -34,7 +52,6 @@ mod tests {
         let params = customize(AgentParams::default());
         Agents::new(&params)
     }
-
     #[p_test((1, ), (10, ))]
     fn size_of_vectors(num_agents: usize) {
         let agents = from_defaults(|p| AgentParams {
@@ -46,19 +63,7 @@ mod tests {
         assert_eq!(agents.wealths.len(), num_agents);
         assert_eq!(agents.count, num_agents);
     }
-
-    // #[test]
-    // fn wealth_distribution_is_within_bounds() {
-    //     let model = Model::from_default(|w, a| {
-    //         (
-    //             w,
-    //             AgentParams {
-    //                 wealth_distribution: RandomDistribution::Uniform { min: 0, max: 100 },
-    //                 ..a
-    //             },
-    //         )
-    //     });
-    //     let wealths = model.wealths;
-    //     assert!(wealths.iter().all(|w| (&0..=&100).contains(&w)));
-    // }
+    // NOTE: I am not testing the distribution of the different
+    // attributes of the agent, because the complexity seems too
+    // high given its value at this point.
 }
