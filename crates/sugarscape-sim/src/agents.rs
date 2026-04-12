@@ -7,6 +7,7 @@ pub struct Agents {
     wealths: Vec<u32>,
     visions: Vec<u32>,
     ages: Vec<u32>,
+    metabolic_rates: Vec<u32>,
 
     pub count: usize,
 }
@@ -16,11 +17,13 @@ impl Agents {
         let mut wealths: Vec<u32> = Vec::with_capacity(agents.count);
         let mut visions: Vec<u32> = Vec::with_capacity(agents.count);
         let mut ages: Vec<u32> = Vec::with_capacity(agents.count);
+        let mut metabolic_rates: Vec<u32> = Vec::with_capacity(agents.count);
 
         for (attribute, distribution) in [
             (&mut wealths, &agents.wealth_distribution),
             (&mut visions, &agents.vision_distribution),
             (&mut ages, &agents.max_age_distribution),
+            (&mut metabolic_rates, &agents.metabolic_rate_distribution),
         ] {
             match distribution {
                 RandomDistribution::Uniform { min, max } => {
@@ -37,6 +40,7 @@ impl Agents {
             wealths,
             visions,
             ages,
+            metabolic_rates,
             count: agents.count,
         }
     }
