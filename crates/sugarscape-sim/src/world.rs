@@ -4,10 +4,10 @@ use std::collections::{HashMap, HashSet};
 use crate::agents::Agents;
 use crate::config::{AgentParams, WorldParams};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct AgentId(usize);
 
-#[derive(Debug, Hash, Eq, PartialEq)]
+#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
 struct CellId(usize);
 
 #[derive(Debug)]
@@ -87,23 +87,18 @@ impl World {
     fn growback_rule(&mut self) {
         for (cell_idx, level) in self.levels.iter_mut().enumerate() {
             let capacity = self.capacities[cell_idx];
-            *level = f32::max(capacity, *level + self.growth_rate);
+            *level = f32::min(capacity, *level + self.growth_rate);
         }
     }
 
     #[inline]
     fn movement_rule(&mut self) {
-        todo!()
-    }
-
-    #[inline]
-    fn select_nearby_cells(&self) {
-        todo!()
+        println!("movement_rule");
     }
 
     #[inline]
     fn replacement_rule(&mut self) {
-        todo!()
+        println!("replacement_rule");
     }
 }
 
@@ -215,15 +210,16 @@ mod tests {
         assert_eq!(world.locations.len(), num_agents);
     }
 
-    fn test_growback_rule_doesnot_go_beyond_max_capacity() {
-        let mut world = from_defaults(|(w, a)| {
+    #[test]
+    fn growback_rule_doesnot_go_beyond_max_capacity() {
+        let mut world = from_defaults(|(_w, a)| {
             (
                 WorldParams {
                     width: 2,
                     height: 2,
                     // Use a growth rate that ensure next step will go beyond max capacity if
                     // not capped properly by the implementation of the growback rule.
-                    growth_rate: 3,
+                    growth_rate: 4,
                     capacity_distribution: CellCapacityDistribution {
                         peaks: vec![CellPosition { x: 0, y: 0 }],
                         // Using a reduction factor that is greater than the

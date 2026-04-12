@@ -4,10 +4,10 @@ use crate::config::{AgentParams, RandomDistribution};
 
 #[derive(Debug)]
 pub struct Agents {
-    wealths: Vec<u32>,
-    visions: Vec<u32>,
-    ages: Vec<u32>,
-    metabolic_rates: Vec<u32>,
+    pub wealths: Vec<u32>,
+    pub visions: Vec<u32>,
+    pub ages: Vec<u32>,
+    pub metabolic_rates: Vec<u32>,
 
     pub count: usize,
 }
