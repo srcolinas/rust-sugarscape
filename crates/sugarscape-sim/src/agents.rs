@@ -5,6 +5,8 @@ pub struct Agents {
     wealths: Vec<i32>,
     visions: Vec<i32>,
     ages: Vec<i32>,
+
+    pub count: usize,
 }
 
 impl Agents {
@@ -17,6 +19,7 @@ impl Agents {
             wealths,
             visions,
             ages,
+            count: agents.count,
         }
     }
 }
@@ -41,6 +44,7 @@ mod tests {
         assert_eq!(agents.ages.len(), num_agents);
         assert_eq!(agents.visions.len(), num_agents);
         assert_eq!(agents.wealths.len(), num_agents);
+        assert_eq!(agents.count, num_agents);
     }
 
     // #[test]

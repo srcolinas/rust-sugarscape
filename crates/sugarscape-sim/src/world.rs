@@ -1,7 +1,14 @@
 use rand::seq::IteratorRandom;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
+use crate::agents::Agents;
 use crate::config::{AgentParams, WorldParams};
+
+#[derive(Debug)]
+struct AgentId(usize);
+
+#[derive(Debug, Hash, Eq, PartialEq)]
+struct CellId(usize);
 
 #[derive(Debug)]
 pub struct World {
@@ -11,7 +18,8 @@ pub struct World {
     width: u8,
     height: u8,
 
-    empty_cells: HashSet<usize>,
+    // Cells not in the map are empty.
+    locations: HashMap<CellId, AgentId>,
 }
 
 impl World {
@@ -47,15 +55,19 @@ impl World {
             levels: vec![0; num_cells],
             width: world.width,
             height: world.height,
-            empty_cells: HashSet::new(),
+            locations: HashMap::new(),
         }
     }
 
     pub fn populate(&mut self, agents: &AgentParams) {
+        let agents = Agents::new(agents);
         let num_cells = self.width as usize * self.height as usize;
-        let range = 0..(num_cells - 1);
-        for i in range.sample(&mut rand::rng(), num_cells - agents.count) {
-            self.empty_cells.insert(i);
+        for (cell_idx, agent_idx) in (0..num_cells)
+            .sample(&mut rand::rng(), agents.count)
+            .iter()
+            .enumerate()
+        {
+            self.locations.insert(CellId(cell_idx), AgentId(*agent_idx));
         }
     }
 
@@ -151,18 +163,13 @@ mod tests {
         assert_relative_eq!(capacities[idx], expected_value, epsilon = 1e-5);
     }
 
-    #[p_test((5, 5, 10, 15), (2, 3, 5, 1), (2, 2, 4, 0))]
-    fn number_of_empty_cells_is_correct(
-        width: u8,
-        height: u8,
-        num_agents: usize,
-        num_empty_cells: usize,
-    ) {
+    #[p_test((5, 5, 10), (2, 3, 5), (2, 2, 4))]
+    fn number_of_occupied_cells_is_correct(width: u8, height: u8, num_agents: usize) {
         let mut world = from_defaults(|w| WorldParams { width, height, ..w });
         world.populate(&AgentParams {
             count: num_agents,
             ..AgentParams::default()
         });
-        assert_eq!(world.empty_cells.len(), num_empty_cells);
+        assert_eq!(world.locations.len(), num_agents);
     }
 }
