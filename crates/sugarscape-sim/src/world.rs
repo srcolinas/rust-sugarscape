@@ -53,7 +53,7 @@ impl World {
             }
         }
 
-        let agents = Agents::new(&agents);
+        let agents = Agents::new(agents);
         World {
             capacities,
             levels: vec![0.0; num_cells],
@@ -67,12 +67,12 @@ impl World {
 
     fn populate(agents: &Agents, num_cells: usize) -> HashMap<CellId, AgentId> {
         let mut locations = HashMap::new();
-        for (cell_idx, agent_idx) in (0..num_cells)
+        for (agent, cell) in (0..num_cells)
             .sample(&mut rand::rng(), agents.count)
             .iter()
             .enumerate()
         {
-            locations.insert(CellId(cell_idx), AgentId(*agent_idx));
+            locations.insert(CellId(*cell), AgentId(agent));
         }
         locations
     }
@@ -80,7 +80,6 @@ impl World {
     pub fn step(&mut self) {
         self.growback_rule();
         self.movement_rule();
-        self.replacement_rule();
     }
 
     #[inline]
@@ -93,18 +92,86 @@ impl World {
 
     #[inline]
     fn movement_rule(&mut self) {
-        println!("movement_rule");
-    }
-
-    #[inline]
-    fn replacement_rule(&mut self) {
-        println!("replacement_rule");
+        {
+            let mut rng = rand::rng();
+            let mut updates = HashMap::new();
+            let mut cells_to_remove = Vec::with_capacity(self.locations.len());
+            for (cell, agent) in self.locations.iter() {
+                let vision = self.agents.visions[agent.0];
+                let mut nearby: HashSet<CellId> = HashSet::with_capacity(4 * vision as usize);
+                nearby.insert(*cell);
+                let mut current_max_level = self.levels[cell.0];
+                let cell_coords = idx_to_coord(cell.0, self.width);
+                for direction in [north_to, south_to, west_to, east_to] {
+                    for i in 1..=vision {
+                        let alternative = direction(cell_coords, i as u8, self.width, self.height);
+                        match alternative {
+                            Some(alternative) => {
+                                let idx = coord_to_idx(alternative.0, alternative.1, self.width);
+                                if self.levels[idx] > current_max_level {
+                                    current_max_level = self.levels[idx];
+                                }
+                                if !self.locations.contains_key(&CellId(idx)) {
+                                    nearby.insert(CellId(idx));
+                                }
+                            }
+                            None => break,
+                        }
+                    }
+                }
+                cells_to_remove.push(*cell);
+                let selected = nearby
+                    .iter()
+                    .skip_while(|cell| self.levels[cell.0] < current_max_level)
+                    .choose(&mut rng)
+                    .unwrap();
+                updates.insert(*selected, *agent);
+            }
+            self.locations
+                .retain(|cell, _| !cells_to_remove.contains(cell));
+            self.locations.extend(updates);
+        }
     }
 }
 
 #[inline]
 fn coord_to_idx(x: u8, y: u8, width: u8) -> usize {
     x as usize + y as usize * width as usize
+}
+
+#[inline]
+fn idx_to_coord(idx: usize, width: u8) -> (u8, u8) {
+    (idx as u8 % width, idx as u8 / width)
+}
+
+#[inline]
+fn north_to(coords: (u8, u8), by: u8, _w: u8, _h: u8) -> Option<(u8, u8)> {
+    coords.0.checked_sub(by).map(|x| (x, coords.1))
+}
+
+#[inline]
+fn south_to(coords: (u8, u8), by: u8, _w: u8, height: u8) -> Option<(u8, u8)> {
+    let value = coords.1 + by;
+    if value > height {
+        None
+    } else {
+        Some((coords.0, value))
+    }
+}
+
+#[inline]
+fn west_to(coords: (u8, u8), by: u8, _w: u8, _h: u8) -> Option<(u8, u8)> {
+    coords.0.checked_sub(by).map(|x| (x, coords.1))
+}
+
+#[inline]
+fn east_to(coords: (u8, u8), by: u8, width: u8, _h: u8) -> Option<(u8, u8)> {
+    let value = coords.0 + by;
+    if value > width {
+        None
+    } else {
+        Some((value, coords.1))
+    }
 }
 
 #[inline]
@@ -118,7 +185,7 @@ mod tests {
     use approx::assert_relative_eq;
     use p_test::p_test;
 
-    use crate::config::{CellCapacityDistribution, CellPosition, WorldParams};
+    use crate::config::{CellCapacityDistribution, CellPosition, RandomDistribution, WorldParams};
 
     fn from_defaults(
         customize: impl FnOnce((WorldParams, AgentParams)) -> (WorldParams, AgentParams),
@@ -234,5 +301,36 @@ mod tests {
         });
         world.step();
         assert_eq!(world.levels, vec![1.0, 0.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn agents_move_to_nearby_cells() {
+        let mut world = from_defaults(|(w, a)| {
+            (
+                WorldParams {
+                    width: 1,
+                    height: 2,
+                    ..w
+                },
+                AgentParams {
+                    count: 1,
+                    vision_distribution: RandomDistribution::Uniform { min: 1, max: 1 },
+                    ..a
+                },
+            )
+        });
+        // Since the selection is at random, there should be an
+        // approximately even split between the two cells.
+        let total: usize = 100;
+        let num_selected = (0..total)
+            .reduce(|acc, _| {
+                world.step();
+                if world.locations.contains_key(&CellId(0)) {
+                    return acc + 1;
+                }
+                acc
+            })
+            .unwrap();
+        assert_relative_eq!(num_selected as f32 / total as f32, 0.5, epsilon = 0.1);
     }
 }
