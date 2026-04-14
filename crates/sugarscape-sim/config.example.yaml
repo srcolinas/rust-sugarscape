@@ -4,10 +4,10 @@ world:
   growth_rate: 1
   capacity_distribution:
     peaks:
-      - x: 10
-        y: 40
-      - x: 40
-        y: 10
+      - row: 10
+        col: 40
+      - row: 40
+        col: 10
     max_capacity: 4
     reduction_factor: 0.5
 

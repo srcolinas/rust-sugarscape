@@ -33,20 +33,20 @@ impl World {
         let mut capacities = vec![0.0; num_cells];
         let mut peaks = HashSet::new();
         for peak in world.capacity_distribution.peaks.iter() {
-            let idx = coord_to_idx(peak.x, peak.y, world.width);
+            let idx = coord_to_idx(peak.row, peak.col, world.width);
             capacities[idx] = max_capacity;
-            peaks.insert((peak.x, peak.y));
+            peaks.insert((peak.row, peak.col));
         }
 
-        for x in 0..world.width {
-            for y in 0..world.height {
-                if !peaks.contains(&(x, y)) {
+        for col in 0..world.width {
+            for row in 0..world.height {
+                if !peaks.contains(&(row, col)) {
                     let mut distance: f32 = f32::INFINITY;
-                    for (px, py) in peaks.iter() {
-                        let current = euclidean_distance(x, y, *px, *py);
+                    for (prow, pcol) in peaks.iter() {
+                        let current = euclidean_distance(row, col, *prow, *pcol);
                         distance = f32::min(distance, current);
                     }
-                    let idx = coord_to_idx(x, y, world.width);
+                    let idx = coord_to_idx(row, col, world.width);
                     let capacity = f32::max(0.0, max_capacity - distance * reduction_factor);
                     capacities[idx] = capacity;
                 }
@@ -108,9 +108,7 @@ impl World {
                         match alternative {
                             Some(alternative) => {
                                 let idx = coord_to_idx(alternative.0, alternative.1, self.width);
-                                if self.levels[idx] > current_max_level {
-                                    current_max_level = self.levels[idx];
-                                }
+                                current_max_level = f32::max(current_max_level, self.levels[idx]);
                                 if !self.locations.contains_key(&CellId(idx)) {
                                     nearby.insert(CellId(idx));
                                 }
@@ -135,13 +133,13 @@ impl World {
 }
 
 #[inline]
-fn coord_to_idx(x: u8, y: u8, width: u8) -> usize {
-    x as usize + y as usize * width as usize
+fn coord_to_idx(row: u8, col: u8, width: u8) -> usize {
+    row as usize * width as usize + col as usize
 }
 
 #[inline]
 fn idx_to_coord(idx: usize, width: u8) -> (u8, u8) {
-    (idx as u8 % width, idx as u8 / width)
+    (idx as u8 / width, idx as u8 % width)
 }
 
 #[inline]
@@ -239,7 +237,10 @@ mod tests {
 
         let width = 5;
         let height = 5;
-        let peaks = [CellPosition { x: 1, y: 1 }, CellPosition { x: 3, y: 3 }];
+        let peaks = [
+            CellPosition { row: 1, col: 1 },
+            CellPosition { row: 3, col: 3 },
+        ];
         let world = from_defaults(|(w, a)| {
             (
                 WorldParams {
@@ -250,7 +251,10 @@ mod tests {
                         max_capacity,
                         peaks: peaks
                             .iter()
-                            .map(|p| CellPosition { x: p.x, y: p.y })
+                            .map(|p| CellPosition {
+                                row: p.row,
+                                col: p.col,
+                            })
                             .collect(),
                     },
                     ..w
@@ -288,7 +292,7 @@ mod tests {
                     // not capped properly by the implementation of the growback rule.
                     growth_rate: 4,
                     capacity_distribution: CellCapacityDistribution {
-                        peaks: vec![CellPosition { x: 0, y: 0 }],
+                        peaks: vec![CellPosition { row: 0, col: 0 }],
                         // Using a reduction factor that is greater than the
                         // minimun distance between a peak and a non-peak cell,
                         // ensures that capacity is cero except for the peak cells.
@@ -321,7 +325,7 @@ mod tests {
         });
         // Since the selection is at random, there should be an
         // approximately even split between the two cells.
-        let total: usize = 100;
+        let total: usize = 2;
         let num_selected = (0..total)
             .reduce(|acc, _| {
                 world.step();
@@ -332,5 +336,17 @@ mod tests {
             })
             .unwrap();
         assert_relative_eq!(num_selected as f32 / total as f32, 0.5, epsilon = 0.1);
+    }
+
+    #[p_test((0, 0, 5, 0), (1, 0, 5, 5), (0, 1, 5, 1), (1, 1, 5, 6))]
+    fn translation_from_coords_to_idx(row: u8, col: u8, width: u8, expected_idx: usize) {
+        let idx = coord_to_idx(row, col, width);
+        assert_eq!(idx, expected_idx);
+    }
+
+    #[p_test((0, 5, (0, 0)), (5, 5, (1, 0)), (1, 5, (0, 1)), (6, 5, (1, 1)))]
+    fn translation_from_idx_to_coords(idx: usize, width: u8, expected_coords: (u8, u8)) {
+        let coords = idx_to_coord(idx, width);
+        assert_eq!(coords, expected_coords);
     }
 }

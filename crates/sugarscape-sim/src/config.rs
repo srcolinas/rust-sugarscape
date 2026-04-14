@@ -53,8 +53,8 @@ impl Default for CellCapacityDistribution {
 
 #[derive(Debug, Deserialize)]
 pub struct CellPosition {
-    pub x: u8,
-    pub y: u8,
+    pub row: u8,
+    pub col: u8,
 }
 
 #[derive(Debug, Deserialize)]
