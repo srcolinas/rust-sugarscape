@@ -51,7 +51,7 @@ impl Default for CellCapacityDistribution {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq, Eq, Hash)]
 pub struct CellPosition {
     pub row: u8,
     pub col: u8,

@@ -2,7 +2,7 @@ use rand::seq::IteratorRandom;
 use std::collections::{HashMap, HashSet};
 
 use crate::agents::Agents;
-use crate::config::{AgentParams, WorldParams};
+use crate::config::{AgentParams, CellPosition, WorldParams};
 
 #[derive(Debug, Clone, Copy)]
 struct AgentId(usize);
@@ -35,15 +35,15 @@ impl World {
         for peak in world.capacity_distribution.peaks.iter() {
             let idx = coord_to_idx(peak.row, peak.col, world.width);
             capacities[idx] = max_capacity;
-            peaks.insert((peak.row, peak.col));
+            peaks.insert(peak);
         }
 
         for col in 0..world.width {
             for row in 0..world.height {
-                if !peaks.contains(&(row, col)) {
+                if !peaks.contains(&CellPosition { row, col }) {
                     let mut distance: f32 = f32::INFINITY;
-                    for (prow, pcol) in peaks.iter() {
-                        let current = euclidean_distance(row, col, *prow, *pcol);
+                    for peak in peaks.iter() {
+                        let current = euclidean_distance(&CellPosition { row, col }, peak);
                         distance = f32::min(distance, current);
                     }
                     let idx = coord_to_idx(row, col, world.width);
@@ -104,10 +104,11 @@ impl World {
                 let cell_coords = idx_to_coord(cell.0, self.width);
                 for direction in [north_to, south_to, west_to, east_to] {
                     for i in 1..=vision {
-                        let alternative = direction(cell_coords, i as u8, self.width, self.height);
+                        let alternative = direction(&cell_coords, i as u8, self.width, self.height);
                         match alternative {
                             Some(alternative) => {
-                                let idx = coord_to_idx(alternative.0, alternative.1, self.width);
+                                let idx =
+                                    coord_to_idx(alternative.row, alternative.col, self.width);
                                 current_max_level = f32::max(current_max_level, self.levels[idx]);
                                 if !self.locations.contains_key(&CellId(idx)) {
                                     nearby.insert(CellId(idx));
@@ -138,43 +139,58 @@ fn coord_to_idx(row: u8, col: u8, width: u8) -> usize {
 }
 
 #[inline]
-fn idx_to_coord(idx: usize, width: u8) -> (u8, u8) {
-    (idx as u8 / width, idx as u8 % width)
+fn idx_to_coord(idx: usize, width: u8) -> CellPosition {
+    CellPosition {
+        row: idx as u8 / width,
+        col: idx as u8 % width,
+    }
 }
 
 #[inline]
-fn north_to(coords: (u8, u8), by: u8, _w: u8, _h: u8) -> Option<(u8, u8)> {
-    coords.0.checked_sub(by).map(|x| (x, coords.1))
+fn north_to(coords: &CellPosition, by: u8, _w: u8, _h: u8) -> Option<CellPosition> {
+    coords.row.checked_sub(by).map(|x| CellPosition {
+        row: x,
+        col: coords.col,
+    })
 }
 
 #[inline]
-fn south_to(coords: (u8, u8), by: u8, _w: u8, height: u8) -> Option<(u8, u8)> {
-    let value = coords.1 + by;
+fn south_to(coords: &CellPosition, by: u8, _w: u8, height: u8) -> Option<CellPosition> {
+    let value = coords.row + by;
     if value > height {
         None
     } else {
-        Some((coords.0, value))
+        Some(CellPosition {
+            row: value,
+            col: coords.col,
+        })
     }
 }
 
 #[inline]
-fn west_to(coords: (u8, u8), by: u8, _w: u8, _h: u8) -> Option<(u8, u8)> {
-    coords.0.checked_sub(by).map(|x| (x, coords.1))
+fn west_to(coords: &CellPosition, by: u8, _w: u8, _h: u8) -> Option<CellPosition> {
+    coords.col.checked_sub(by).map(|x| CellPosition {
+        row: coords.row,
+        col: x,
+    })
 }
 
 #[inline]
-fn east_to(coords: (u8, u8), by: u8, width: u8, _h: u8) -> Option<(u8, u8)> {
-    let value = coords.0 + by;
+fn east_to(coords: &CellPosition, by: u8, width: u8, _h: u8) -> Option<CellPosition> {
+    let value = coords.col + by;
     if value > width {
         None
     } else {
-        Some((value, coords.1))
+        Some(CellPosition {
+            row: coords.row,
+            col: value,
+        })
     }
 }
 
 #[inline]
-fn euclidean_distance(x1: u8, y1: u8, x2: u8, y2: u8) -> f32 {
-    ((x1 as f32 - x2 as f32).powi(2) + (y1 as f32 - y2 as f32).powi(2)).sqrt()
+fn euclidean_distance(p1: &CellPosition, p2: &CellPosition) -> f32 {
+    ((p1.row as f32 - p2.row as f32).powi(2) + (p1.col as f32 - p2.col as f32).powi(2)).sqrt()
 }
 
 #[cfg(test)]
@@ -347,6 +363,12 @@ mod tests {
     #[p_test((0, 5, (0, 0)), (5, 5, (1, 0)), (1, 5, (0, 1)), (6, 5, (1, 1)))]
     fn translation_from_idx_to_coords(idx: usize, width: u8, expected_coords: (u8, u8)) {
         let coords = idx_to_coord(idx, width);
-        assert_eq!(coords, expected_coords);
+        assert_eq!(
+            coords,
+            CellPosition {
+                row: expected_coords.0,
+                col: expected_coords.1
+            }
+        );
     }
 }
