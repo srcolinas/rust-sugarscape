@@ -109,8 +109,8 @@ impl World {
                             Some(alternative) => {
                                 let idx =
                                     coord_to_idx(alternative.row, alternative.col, self.width);
-                                current_max_level = f32::max(current_max_level, self.levels[idx]);
                                 if !self.locations.contains_key(&CellId(idx)) {
+                                    current_max_level = f32::max(current_max_level, self.levels[idx]);
                                     nearby.insert(CellId(idx));
                                 }
                             }
@@ -121,7 +121,7 @@ impl World {
                 cells_to_remove.push(*cell);
                 let selected = nearby
                     .iter()
-                    .skip_while(|cell| self.levels[cell.0] < current_max_level)
+                    .filter(|cell| self.levels[cell.0] >= current_max_level)
                     .choose(&mut rng)
                     .unwrap();
                 updates.insert(*selected, *agent);
@@ -156,15 +156,16 @@ fn north_to(coords: &CellPosition, by: u8, _w: u8, _h: u8) -> Option<CellPositio
 
 #[inline]
 fn south_to(coords: &CellPosition, by: u8, _w: u8, height: u8) -> Option<CellPosition> {
-    let value = coords.row + by;
-    if value > height {
-        None
-    } else {
-        Some(CellPosition {
-            row: value,
-            col: coords.col,
-        })
-    }
+    coords.row.checked_add(by).and_then(|x| {
+        if x >= height {
+            None
+        } else {
+            Some(CellPosition {
+                row: x,
+                col: coords.col,
+            })
+        }
+    })
 }
 
 #[inline]
@@ -177,15 +178,16 @@ fn west_to(coords: &CellPosition, by: u8, _w: u8, _h: u8) -> Option<CellPosition
 
 #[inline]
 fn east_to(coords: &CellPosition, by: u8, width: u8, _h: u8) -> Option<CellPosition> {
-    let value = coords.col + by;
-    if value > width {
-        None
-    } else {
-        Some(CellPosition {
-            row: coords.row,
-            col: value,
-        })
-    }
+    coords.col.checked_add(by).and_then(|x| {
+        if x >= width {
+            None
+        } else {
+            Some(CellPosition {
+                row: coords.row,
+                col: x,
+            })
+        }
+    })
 }
 
 #[inline]
@@ -341,7 +343,8 @@ mod tests {
         });
         // Since the selection is at random, there should be an
         // approximately even split between the two cells.
-        let total: usize = 2;
+        // We need to run the step a number of times to ensure accurate results.
+        let total: usize = 100;
         let num_selected = (0..total)
             .reduce(|acc, _| {
                 world.step();
@@ -370,5 +373,77 @@ mod tests {
                 col: expected_coords.1
             }
         );
+    }
+
+    #[p_test((1, 0, 1, 0, 0), (1, 1, 1, 0, 1))]
+    fn movement_to_the_north(row: u8, col: u8, by: u8, expected_row: u8, expected_col: u8) {
+        let result = north_to(&CellPosition { row, col }, by, 5, 5);
+        assert_eq!(
+            result,
+            Some(CellPosition {
+                row: expected_row,
+                col: expected_col
+            })
+        );
+    }
+
+    #[p_test((0, 0, 1), (0, 1, 1))]
+    fn movement_to_the_north_out_of_bounds(row: u8, col: u8, by: u8) {
+        let result = north_to(&CellPosition { row, col }, by, 5, 5);
+        assert_eq!(result, None);
+    }
+
+    #[p_test((0, 0, 1, 1, 0), (0, 1, 1, 1, 1))]
+    fn movement_to_the_south(row: u8, col: u8, by: u8, expected_row: u8, expected_col: u8) {
+        let result = south_to(&CellPosition { row, col }, by, 5, 5);
+        assert_eq!(
+            result,
+            Some(CellPosition {
+                row: expected_row,
+                col: expected_col
+            })
+        );
+    }
+
+    #[p_test((1, 0, 1, 2), (1, 1, 1, 2))]
+    fn movement_to_the_south_out_of_bounds(row: u8, col: u8, by: u8, height: u8) {
+        let result = south_to(&CellPosition { row, col }, by, 5, height);
+        assert_eq!(result, None);
+    }
+
+    #[p_test((0, 1, 1, 0, 0), (1, 1, 1, 1, 0))]
+    fn movement_to_the_west(row: u8, col: u8, by: u8, expected_row: u8, expected_col: u8) {
+        let result = west_to(&CellPosition { row, col }, by, 5, 5);
+        assert_eq!(
+            result,
+            Some(CellPosition {
+                row: expected_row,
+                col: expected_col
+            })
+        );
+    }
+
+    #[p_test((0, 0, 1), (1, 0, 1))]
+    fn movement_to_the_west_out_of_bounds(row: u8, col: u8, by: u8) {
+        let result = west_to(&CellPosition { row, col }, by, 5, 5);
+        assert_eq!(result, None);
+    }
+
+    #[p_test((0, 0, 1, 0, 1), (1, 0, 1, 1, 1))]
+    fn movement_to_the_east(row: u8, col: u8, by: u8, expected_row: u8, expected_col: u8) {
+        let result = east_to(&CellPosition { row, col }, by, 5, 5);
+        assert_eq!(
+            result,
+            Some(CellPosition {
+                row: expected_row,
+                col: expected_col
+            })
+        );
+    }
+
+    #[p_test((0, 1, 1, 2), (1, 1, 1, 2))]
+    fn movement_to_the_east_out_of_bounds(row: u8, col: u8, by: u8, width: u8) {
+        let result = east_to(&CellPosition { row, col }, by, width, 5);
+        assert_eq!(result, None);
     }
 }
