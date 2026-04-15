@@ -110,7 +110,8 @@ impl World {
                                 let idx =
                                     coord_to_idx(alternative.row, alternative.col, self.width);
                                 if !self.locations.contains_key(&CellId(idx)) {
-                                    current_max_level = f32::max(current_max_level, self.levels[idx]);
+                                    current_max_level =
+                                        f32::max(current_max_level, self.levels[idx]);
                                     nearby.insert(CellId(idx));
                                 }
                             }
@@ -355,6 +356,47 @@ mod tests {
             })
             .unwrap();
         assert_relative_eq!(num_selected as f32 / total as f32, 0.5, epsilon = 0.1);
+    }
+
+    #[p_test((1,), (2,), (3,), (4,))]
+    fn agents_move_to_nearby_cells_with_max_level_as_tiebreaker(steps: usize) {
+        let peak_row = 0;
+        let peak_col = 0;
+        let mut world = from_defaults(|(_w, a)| {
+            (
+                WorldParams {
+                    width: 1,
+                    height: 2,
+                    growth_rate: 1,
+                    capacity_distribution: CellCapacityDistribution {
+                        // Using a reduction factor that is greater than the
+                        // minimun distance between a peak and a non-peak cell,
+                        // ensures that capacity is cero except for the peak cells.
+                        peaks: vec![CellPosition {
+                            row: peak_row,
+                            col: peak_col,
+                        }],
+                        max_capacity: 1.0,
+                        reduction_factor: 3.0,
+                    },
+                },
+                AgentParams {
+                    count: 1,
+                    vision_distribution: RandomDistribution::Uniform { min: 2, max: 2 },
+                    ..a
+                },
+            )
+        });
+        for _ in 0..steps {
+            world.step();
+        }
+        assert_eq!(world.locations.len(), 1);
+        assert_eq!(
+            world
+                .locations
+                .contains_key(&CellId(coord_to_idx(peak_row, peak_col, world.width))),
+            true
+        );
     }
 
     #[p_test((0, 0, 5, 0), (1, 0, 5, 5), (0, 1, 5, 1), (1, 1, 5, 6))]
