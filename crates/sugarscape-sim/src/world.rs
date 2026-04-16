@@ -1,10 +1,12 @@
 use rand::seq::IteratorRandom;
 use std::collections::{HashMap, HashSet};
 
+use bimap::BiMap;
+
 use crate::agents::Agents;
 use crate::config::{AgentParams, CellPosition, WorldParams};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 struct AgentId(usize);
 
 #[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
@@ -20,8 +22,12 @@ pub struct World {
     height: u8,
 
     // Cells not in the map are empty.
-    locations: HashMap<CellId, AgentId>,
+    // Using a BiMap instead of a HashMap to ensure that the
+    // insertion and removal of agents is O(1).
+    locations: BiMap<CellId, AgentId>,
     agents: Agents,
+
+    step_count: usize,
 }
 
 impl World {
@@ -54,19 +60,21 @@ impl World {
         }
 
         let agents = Agents::new(agents);
+        let locations = World::populate(&agents, num_cells);
         World {
             capacities,
             levels: vec![0.0; num_cells],
             growth_rate: world.growth_rate as f32,
             width: world.width,
             height: world.height,
-            locations: World::populate(&agents, num_cells),
+            locations,
             agents,
+            step_count: 0,
         }
     }
 
-    fn populate(agents: &Agents, num_cells: usize) -> HashMap<CellId, AgentId> {
-        let mut locations = HashMap::new();
+    fn populate(agents: &Agents, num_cells: usize) -> BiMap<CellId, AgentId> {
+        let mut locations = BiMap::new();
         for (agent, cell) in (0..num_cells)
             .sample(&mut rand::rng(), agents.count)
             .iter()
@@ -80,6 +88,10 @@ impl World {
     pub fn step(&mut self) {
         self.growback_rule();
         self.movement_rule();
+        // Increment the step count after the movement rule to ensure that the replacement rule
+        // works for agents that have a lifetime of 1 step.
+        self.step_count += 1;
+        self.replacement_rule();
     }
 
     #[inline]
@@ -109,7 +121,7 @@ impl World {
                             Some(alternative) => {
                                 let idx =
                                     coord_to_idx(alternative.row, alternative.col, self.width);
-                                if !self.locations.contains_key(&CellId(idx)) {
+                                if !self.locations.contains_left(&CellId(idx)) {
                                     current_max_level =
                                         f32::max(current_max_level, self.levels[idx]);
                                     nearby.insert(CellId(idx));
@@ -130,6 +142,32 @@ impl World {
             self.locations
                 .retain(|cell, _| !cells_to_remove.contains(cell));
             self.locations.extend(updates);
+        }
+    }
+
+    #[inline]
+    fn replacement_rule(&mut self) {
+        let step_count = self.step_count as u32;
+        let to_replace = Vec::from_iter(
+            self.locations
+                .iter()
+                .filter(|(_, agent)| self.agents.ages[agent.0] >= step_count)
+                .map(|(cell, _)| *cell),
+        );
+        let mut rng = rand::rng();
+        let num_cells = self.width as usize * self.height as usize;
+        for cell in to_replace {
+            self.locations.remove_by_left(&cell).unwrap();
+            let new_cell = (0..num_cells)
+                .filter(|&cell| !self.locations.contains_left(&CellId(cell)))
+                .choose(&mut rng)
+                .unwrap();
+            let new_agent_idx = (0..self.agents.count)
+                .filter(|&idx| !self.locations.contains_right(&AgentId(idx)))
+                .choose(&mut rng)
+                .unwrap();
+            self.locations
+                .insert(CellId(new_cell), AgentId(new_agent_idx));
         }
     }
 }
@@ -349,7 +387,7 @@ mod tests {
         let num_selected = (0..total)
             .reduce(|acc, _| {
                 world.step();
-                if world.locations.contains_key(&CellId(0)) {
+                if world.locations.contains_left(&CellId(0)) {
                     return acc + 1;
                 }
                 acc
@@ -394,7 +432,7 @@ mod tests {
         assert_eq!(
             world
                 .locations
-                .contains_key(&CellId(coord_to_idx(peak_row, peak_col, world.width))),
+                .contains_left(&CellId(coord_to_idx(peak_row, peak_col, world.width))),
             true
         );
     }
@@ -487,5 +525,29 @@ mod tests {
     fn movement_to_the_east_out_of_bounds(row: u8, col: u8, by: u8, width: u8) {
         let result = east_to(&CellPosition { row, col }, by, width, 5);
         assert_eq!(result, None);
+    }
+
+    #[p_test((1,), (2,), (3,), (4,), (5,))]
+    fn replacement_rule_ensures_number_of_agents_is_constant(iterations: usize) {
+        let mut world = from_defaults(|(w, a)| {
+            (
+                WorldParams {
+                    width: 3,
+                    height: 3,
+                    ..w
+                },
+                AgentParams {
+                    count: 5,
+                    // I want agents die after a single step to quickly trigger the replacement rule.
+                    max_age_distribution: RandomDistribution::Uniform { min: 1, max: 1 },
+                    ..a
+                },
+            )
+        });
+
+        for _ in 0..iterations {
+            world.step();
+        }
+        assert_eq!(world.locations.len(), world.agents.count);
     }
 }

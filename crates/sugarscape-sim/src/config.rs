@@ -57,7 +57,7 @@ pub struct CellPosition {
     pub col: u8,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum RandomDistribution {
     Uniform { min: u32, max: u32 },
@@ -69,7 +69,7 @@ impl Default for RandomDistribution {
     }
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 pub struct AgentParams {
     pub count: usize,
     pub wealth_distribution: RandomDistribution,
