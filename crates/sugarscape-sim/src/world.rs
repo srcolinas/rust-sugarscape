@@ -26,8 +26,7 @@ pub struct World {
     // insertion and removal of agents is O(1).
     locations: BiMap<CellId, AgentId>,
     agents: Agents,
-
-    step_count: usize,
+    ages: HashMap<AgentId, u32>,
 }
 
 impl World {
@@ -61,6 +60,7 @@ impl World {
 
         let agents = Agents::new(agents);
         let locations = World::populate(&agents, num_cells);
+        let ages = HashMap::from_iter(locations.iter().map(|(_, agent)| (*agent, 0)));
         World {
             capacities,
             levels: vec![0.0; num_cells],
@@ -69,7 +69,7 @@ impl World {
             height: world.height,
             locations,
             agents,
-            step_count: 0,
+            ages,
         }
     }
 
@@ -88,9 +88,6 @@ impl World {
     pub fn step(&mut self) {
         self.growback_rule();
         let to_remove = self.movement_rule();
-        // Increment the step count after the movement rule to ensure that the replacement rule
-        // works for agents that have a lifetime of 1 step.
-        self.step_count += 1;
         self.replacement_rule(to_remove);
     }
 
@@ -164,17 +161,17 @@ impl World {
 
     #[inline]
     fn replacement_rule(&mut self, to_remove: HashSet<AgentId>) {
-        let step_count = self.step_count as u32;
         let to_replace = Vec::from_iter(
             self.locations
                 .iter()
                 .filter(|(_, agent)| {
-                    self.agents.ages[agent.0] >= step_count || to_remove.contains(agent)
+                    self.ages[agent] >= self.agents.max_ages[agent.0] || to_remove.contains(agent)
                 })
                 .map(|(cell, _)| *cell),
         );
         let mut rng = rand::rng();
         let num_cells = self.width as usize * self.height as usize;
+        let mut new_agents = HashSet::new();
         for cell in to_replace {
             self.locations.remove_by_left(&cell).unwrap();
             let new_cell = (0..num_cells)
@@ -188,6 +185,15 @@ impl World {
             self.agents.add_new_agent_at(new_agent_idx);
             self.locations
                 .insert(CellId(new_cell), AgentId(new_agent_idx));
+            new_agents.insert(AgentId(new_agent_idx));
+        }
+
+        for (_, agent) in self.locations.iter() {
+            if new_agents.contains(agent) {
+                self.ages.insert(*agent, 0);
+            } else {
+                self.ages.insert(*agent, self.ages[agent] + 1);
+            }
         }
     }
 }
@@ -416,45 +422,37 @@ mod tests {
         assert_relative_eq!(num_selected as f32 / total as f32, 0.5, epsilon = 0.1);
     }
 
-    #[p_test((1,), (2,), (3,), (4,))]
-    fn agents_move_to_nearby_cells_with_max_level_as_tiebreaker(steps: usize) {
-        let peak_row = 0;
-        let peak_col = 0;
+    #[test]
+    fn agents_move_to_nearby_cells_with_max_level_as_tiebreaker() {
         let mut world = from_defaults(|(_w, a)| {
             (
                 WorldParams {
                     width: 1,
                     height: 2,
-                    growth_rate: 1,
+                    growth_rate: 0,
                     capacity_distribution: CellCapacityDistribution {
-                        // Using a reduction factor that is greater than the
-                        // minimun distance between a peak and a non-peak cell,
-                        // ensures that capacity is cero except for the peak cells.
-                        peaks: vec![CellPosition {
-                            row: peak_row,
-                            col: peak_col,
-                        }],
+                        peaks: vec![CellPosition { row: 0, col: 0 }],
                         max_capacity: 1.0,
                         reduction_factor: 3.0,
                     },
                 },
                 AgentParams {
                     count: 1,
+                    wealth_distribution: RandomDistribution::Uniform { min: 100, max: 100 },
+                    max_age_distribution: RandomDistribution::Uniform { min: 100, max: 100 },
                     vision_distribution: RandomDistribution::Uniform { min: 2, max: 2 },
                     ..a
                 },
             )
         });
-        for _ in 0..steps {
+        for i in 0..10 {
+            println!("Step {}:", i);
+            world.levels[0] = 1.0;
+            world.levels[1] = 0.0;
             world.step();
+            assert_eq!(world.locations.contains_left(&CellId(0)), true);
+            assert_eq!(world.locations.contains_left(&CellId(1)), false);
         }
-        assert_eq!(world.locations.len(), 1);
-        assert_eq!(
-            world
-                .locations
-                .contains_left(&CellId(coord_to_idx(peak_row, peak_col, world.width))),
-            true
-        );
     }
 
     #[p_test((10.0, 10))]
@@ -632,5 +630,47 @@ mod tests {
             world.step();
         }
         assert_eq!(world.locations.len(), world.agents.count);
+    }
+
+    #[test]
+    fn replaced_agents_die_when_they_have_reached_max_age() {
+        let mut world = from_defaults(|(_w, a)| {
+            (
+                WorldParams {
+                    width: 1,
+                    height: 1,
+                    growth_rate: 10,
+                    capacity_distribution: CellCapacityDistribution {
+                        peaks: vec![CellPosition { row: 0, col: 0 }],
+                        max_capacity: 10.0,
+                        reduction_factor: 0.0,
+                    },
+                },
+                AgentParams {
+                    count: 1,
+                    wealth_distribution: RandomDistribution::Uniform { min: 10, max: 10 },
+                    metabolic_rate_distribution: RandomDistribution::Uniform { min: 0, max: 0 },
+                    max_age_distribution: RandomDistribution::Uniform { min: 2, max: 2 },
+                    ..a
+                },
+            )
+        });
+        // Force a first agent replacement to happen.
+        assert_eq!(world.ages[&AgentId(0)], 0);
+        world.step();
+        assert_eq!(world.ages[&AgentId(0)], 1);
+        world.step();
+        assert_eq!(world.ages[&AgentId(0)], 2);
+
+        // After a single step, the agent should be alive and it should have lived
+        // through one step.
+        world.step();
+        assert_eq!(world.ages[&AgentId(0)], 0);
+
+        world.step();
+        assert_eq!(world.ages[&AgentId(0)], 1);
+
+        world.step();
+        assert_eq!(world.ages[&AgentId(0)], 2);
     }
 }

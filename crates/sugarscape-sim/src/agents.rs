@@ -7,7 +7,7 @@ pub struct Agents {
     pub wealths: Vec<f32>,
     pub metabolic_rates: Vec<f32>,
     pub visions: Vec<u32>,
-    pub ages: Vec<u32>,
+    pub max_ages: Vec<u32>,
 
     pub count: usize,
 
@@ -16,12 +16,12 @@ pub struct Agents {
 
 impl Agents {
     pub fn new(agents: &AgentParams) -> Agents {
-        let (visions, ages) = Agents::initialize_u32_attributes(agents);
+        let (visions, max_ages) = Agents::initialize_u32_attributes(agents);
         let (wealths, metabolic_rates) = Agents::initialize_f32_attributes(agents);
         Agents {
             wealths,
             visions,
-            ages,
+            max_ages,
             metabolic_rates,
             count: agents.count,
             params: agents.clone(),
@@ -30,11 +30,11 @@ impl Agents {
 
     fn initialize_u32_attributes(agents: &AgentParams) -> (Vec<u32>, Vec<u32>) {
         let mut visions: Vec<u32> = Vec::with_capacity(agents.count);
-        let mut ages: Vec<u32> = Vec::with_capacity(agents.count);
+        let mut max_ages: Vec<u32> = Vec::with_capacity(agents.count);
 
         for (attribute, distribution) in [
             (&mut visions, &agents.vision_distribution),
-            (&mut ages, &agents.max_age_distribution),
+            (&mut max_ages, &agents.max_age_distribution),
         ] {
             match distribution {
                 RandomDistribution::Uniform { min, max } => {
@@ -46,7 +46,7 @@ impl Agents {
                 }
             }
         }
-        (visions, ages)
+        (visions, max_ages)
     }
 
     fn initialize_f32_attributes(agents: &AgentParams) -> (Vec<f32>, Vec<f32>) {
@@ -77,7 +77,7 @@ impl Agents {
     fn add_new_agent_at_u32_attributes(&mut self, idx: usize) {
         for (attribute, distribution) in [
             (&mut self.visions, &self.params.vision_distribution),
-            (&mut self.ages, &self.params.max_age_distribution),
+            (&mut self.max_ages, &self.params.max_age_distribution),
         ] {
             match distribution {
                 RandomDistribution::Uniform { min, max } => {
@@ -126,7 +126,7 @@ mod tests {
             count: num_agents,
             ..p
         });
-        assert_eq!(agents.ages.len(), num_agents);
+        assert_eq!(agents.max_ages.len(), num_agents);
         assert_eq!(agents.visions.len(), num_agents);
         assert_eq!(agents.wealths.len(), num_agents);
         assert_eq!(agents.count, num_agents);
@@ -178,9 +178,9 @@ mod tests {
             },
             ..p
         });
-        agents.ages[0] = 0;
+        agents.max_ages[0] = 0;
         agents.add_new_agent_at(0);
-        assert_eq!(agents.ages[0], max_age);
+        assert_eq!(agents.max_ages[0], max_age);
     }
 
     #[test]
