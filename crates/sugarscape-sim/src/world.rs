@@ -87,11 +87,11 @@ impl World {
 
     pub fn step(&mut self) {
         self.growback_rule();
-        self.movement_rule();
+        let to_remove = self.movement_rule();
         // Increment the step count after the movement rule to ensure that the replacement rule
         // works for agents that have a lifetime of 1 step.
         self.step_count += 1;
-        self.replacement_rule();
+        self.replacement_rule(to_remove);
     }
 
     #[inline]
@@ -103,7 +103,7 @@ impl World {
     }
 
     #[inline]
-    fn movement_rule(&mut self) {
+    fn movement_rule(&mut self) -> HashSet<AgentId> {
         {
             let mut rng = rand::rng();
             let mut updates = HashMap::new();
@@ -142,16 +142,35 @@ impl World {
             self.locations
                 .retain(|cell, _| !cells_to_remove.contains(cell));
             self.locations.extend(updates);
+
+            let to_remove = self.consume_sugar();
+            to_remove
         }
     }
 
     #[inline]
-    fn replacement_rule(&mut self) {
+    fn consume_sugar(&mut self) -> HashSet<AgentId> {
+        let mut to_remove = HashSet::new();
+        for (cell, agent) in self.locations.iter() {
+            let update = self.levels[cell.0] - self.agents.metabolic_rates[agent.0];
+            self.agents.wealths[agent.0] += update;
+            self.levels[cell.0] = 0.0;
+            if self.agents.wealths[agent.0] <= 0.0 {
+                to_remove.insert(*agent);
+            }
+        }
+        to_remove
+    }
+
+    #[inline]
+    fn replacement_rule(&mut self, to_remove: HashSet<AgentId>) {
         let step_count = self.step_count as u32;
         let to_replace = Vec::from_iter(
             self.locations
                 .iter()
-                .filter(|(_, agent)| self.agents.ages[agent.0] >= step_count)
+                .filter(|(_, agent)| {
+                    self.agents.ages[agent.0] >= step_count || to_remove.contains(agent)
+                })
                 .map(|(cell, _)| *cell),
         );
         let mut rng = rand::rng();
@@ -166,6 +185,7 @@ impl World {
                 .filter(|&idx| !self.locations.contains_right(&AgentId(idx)))
                 .choose(&mut rng)
                 .unwrap();
+            self.agents.add_new_agent_at(new_agent_idx);
             self.locations
                 .insert(CellId(new_cell), AgentId(new_agent_idx));
         }
@@ -435,6 +455,69 @@ mod tests {
                 .contains_left(&CellId(coord_to_idx(peak_row, peak_col, world.width))),
             true
         );
+    }
+
+    #[p_test((10.0, 10))]
+    fn agent_consumes_sugar_after_one_step(capacity: f32, metabolic_rate: u32) {
+        let mut world = from_defaults(|(_w, a)| {
+            (
+                WorldParams {
+                    width: 1,
+                    height: 1,
+                    growth_rate: 1,
+                    capacity_distribution: CellCapacityDistribution {
+                        peaks: vec![CellPosition { row: 0, col: 0 }],
+                        max_capacity: capacity,
+                        reduction_factor: 0.0,
+                    },
+                },
+                AgentParams {
+                    count: 1,
+                    metabolic_rate_distribution: RandomDistribution::Uniform {
+                        min: metabolic_rate,
+                        max: metabolic_rate,
+                    },
+                    ..a
+                },
+            )
+        });
+        world.step();
+        assert_eq!(world.levels[0], 0.0);
+        assert_eq!(world.agents.wealths[0], capacity - metabolic_rate as f32);
+    }
+
+    #[test]
+    fn agent_dies_when_it_has_no_sugar_after_one_step() {
+        let mut world = from_defaults(|(_w, a)| {
+            (
+                WorldParams {
+                    width: 1,
+                    height: 1,
+                    // No sugar grows back in this world, so the agent will die.
+                    growth_rate: 0,
+                    capacity_distribution: CellCapacityDistribution {
+                        peaks: vec![CellPosition { row: 0, col: 0 }],
+                        // This value doesn't matter because the growth rate is zero.
+                        max_capacity: 100.0,
+                        reduction_factor: 0.0,
+                    },
+                },
+                AgentParams {
+                    count: 1,
+                    // The agent will have an initial wealth of 1, which, given that the metabolic rate
+                    // is 10, and that there will be no sugar in the cell, will be consumed in one step.
+                    wealth_distribution: RandomDistribution::Uniform { min: 1, max: 1 },
+                    metabolic_rate_distribution: RandomDistribution::Uniform { min: 10, max: 10 },
+                    vision_distribution: RandomDistribution::Uniform { min: 3, max: 3 },
+                    ..a
+                },
+            )
+        });
+        // Inject a vision outside of the vision distribution to check that the agent in the
+        // given index is a new one.
+        world.agents.visions[0] = 15;
+        world.step();
+        assert_eq!(world.agents.visions[0], 3);
     }
 
     #[p_test((0, 0, 5, 0), (1, 0, 5, 5), (0, 1, 5, 1), (1, 1, 5, 6))]

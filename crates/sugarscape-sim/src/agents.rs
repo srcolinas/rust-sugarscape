@@ -4,10 +4,10 @@ use crate::config::{AgentParams, RandomDistribution};
 
 #[derive(Debug)]
 pub struct Agents {
-    pub wealths: Vec<u32>,
+    pub wealths: Vec<f32>,
+    pub metabolic_rates: Vec<f32>,
     pub visions: Vec<u32>,
     pub ages: Vec<u32>,
-    pub metabolic_rates: Vec<u32>,
 
     pub count: usize,
 
@@ -16,16 +16,25 @@ pub struct Agents {
 
 impl Agents {
     pub fn new(agents: &AgentParams) -> Agents {
-        let mut wealths: Vec<u32> = Vec::with_capacity(agents.count);
+        let (visions, ages) = Agents::initialize_u32_attributes(agents);
+        let (wealths, metabolic_rates) = Agents::initialize_f32_attributes(agents);
+        Agents {
+            wealths,
+            visions,
+            ages,
+            metabolic_rates,
+            count: agents.count,
+            params: agents.clone(),
+        }
+    }
+
+    fn initialize_u32_attributes(agents: &AgentParams) -> (Vec<u32>, Vec<u32>) {
         let mut visions: Vec<u32> = Vec::with_capacity(agents.count);
         let mut ages: Vec<u32> = Vec::with_capacity(agents.count);
-        let mut metabolic_rates: Vec<u32> = Vec::with_capacity(agents.count);
 
         for (attribute, distribution) in [
-            (&mut wealths, &agents.wealth_distribution),
             (&mut visions, &agents.vision_distribution),
             (&mut ages, &agents.max_age_distribution),
-            (&mut metabolic_rates, &agents.metabolic_rate_distribution),
         ] {
             match distribution {
                 RandomDistribution::Uniform { min, max } => {
@@ -37,30 +46,60 @@ impl Agents {
                 }
             }
         }
+        (visions, ages)
+    }
 
-        Agents {
-            wealths,
-            visions,
-            ages,
-            metabolic_rates,
-            count: agents.count,
-            params: agents.clone(),
+    fn initialize_f32_attributes(agents: &AgentParams) -> (Vec<f32>, Vec<f32>) {
+        let mut wealths: Vec<f32> = Vec::with_capacity(agents.count);
+        let mut metabolic_rates: Vec<f32> = Vec::with_capacity(agents.count);
+        for (attribute, distribution) in [
+            (&mut wealths, &agents.wealth_distribution),
+            (&mut metabolic_rates, &agents.metabolic_rate_distribution),
+        ] {
+            match distribution {
+                RandomDistribution::Uniform { min, max } => {
+                    let possible_values: Vec<f32> = (*min..=*max).map(|x| x as f32).collect();
+                    let mut rng = rand::rng();
+                    for _ in 0..agents.count {
+                        attribute.push(*possible_values.choose(&mut rng).unwrap());
+                    }
+                }
+            }
         }
+        (wealths, metabolic_rates)
     }
 
     pub fn add_new_agent_at(&mut self, idx: usize) {
+        self.add_new_agent_at_u32_attributes(idx);
+        self.add_new_agent_at_f32_attributes(idx);
+    }
+
+    fn add_new_agent_at_u32_attributes(&mut self, idx: usize) {
         for (attribute, distribution) in [
-            (&mut self.wealths, &self.params.wealth_distribution),
             (&mut self.visions, &self.params.vision_distribution),
             (&mut self.ages, &self.params.max_age_distribution),
-            (
-                &mut self.metabolic_rates,
-                &self.params.metabolic_rate_distribution,
-            ),
         ] {
             match distribution {
                 RandomDistribution::Uniform { min, max } => {
                     let possible_values: Vec<u32> = (*min..=*max).collect();
+                    let value = possible_values.choose(&mut rand::rng()).unwrap();
+                    attribute[idx] = *value;
+                }
+            }
+        }
+    }
+
+    fn add_new_agent_at_f32_attributes(&mut self, idx: usize) {
+        for (attribute, distribution) in [
+            (
+                &mut self.metabolic_rates,
+                &self.params.metabolic_rate_distribution,
+            ),
+            (&mut self.wealths, &self.params.wealth_distribution),
+        ] {
+            match distribution {
+                RandomDistribution::Uniform { min, max } => {
+                    let possible_values: Vec<f32> = (*min..=*max).map(|x| x as f32).collect();
                     let value = possible_values.choose(&mut rand::rng()).unwrap();
                     attribute[idx] = *value;
                 }
@@ -107,9 +146,9 @@ mod tests {
             },
             ..p
         });
-        agents.metabolic_rates[0] = metabolic_rate;
+        agents.metabolic_rates[0] = metabolic_rate as f32;
         agents.add_new_agent_at(0);
-        assert_eq!(agents.metabolic_rates[0], metabolic_rate);
+        assert_eq!(agents.metabolic_rates[0], metabolic_rate as f32);
     }
 
     #[test]
@@ -155,8 +194,8 @@ mod tests {
             },
             ..p
         });
-        agents.wealths[0] = 0;
+        agents.wealths[0] = 0.0;
         agents.add_new_agent_at(0);
-        assert_eq!(agents.wealths[0], wealth);
+        assert_eq!(agents.wealths[0], wealth as f32);
     }
 }
