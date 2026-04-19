@@ -12,6 +12,12 @@ struct AgentId(usize);
 #[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
 struct CellId(usize);
 
+#[derive(Debug, PartialEq)]
+pub struct AgentState(pub u32, pub f32);
+
+#[derive(Debug, PartialEq)]
+pub struct CellLevel(pub f32);
+
 #[derive(Debug)]
 pub struct World {
     capacities: Vec<f32>,
@@ -85,10 +91,19 @@ impl World {
         locations
     }
 
-    pub fn step(&mut self) {
+    pub fn step(&mut self) -> HashMap<CellPosition, (CellLevel, AgentState)> {
         self.growback_rule();
         let to_remove = self.movement_rule();
         self.replacement_rule(to_remove);
+        HashMap::from_iter(self.locations.iter().map(|(cell, agent)| {
+            (
+                idx_to_coord(cell.0, self.width),
+                (
+                    CellLevel(self.levels[cell.0]),
+                    AgentState(self.ages[agent], self.agents.wealths[agent.0]),
+                ),
+            )
+        }))
     }
 
     #[inline]
@@ -140,8 +155,8 @@ impl World {
                 .retain(|cell, _| !cells_to_remove.contains(cell));
             self.locations.extend(updates);
 
-            let to_remove = self.consume_sugar();
-            to_remove
+            
+            self.consume_sugar()
         }
     }
 
@@ -672,5 +687,36 @@ mod tests {
 
         world.step();
         assert_eq!(world.ages[&AgentId(0)], 2);
+    }
+
+    #[test]
+    fn exported_world_state() {
+        let mut world = World::new(
+            &WorldParams {
+                width: 1,
+                height: 1,
+                growth_rate: 1,
+                capacity_distribution: CellCapacityDistribution {
+                    peaks: vec![CellPosition { row: 0, col: 0 }],
+                    max_capacity: 10.0,
+                    reduction_factor: 0.0,
+                },
+            },
+            &AgentParams {
+                count: 1,
+                wealth_distribution: RandomDistribution::Uniform { min: 2, max: 2 },
+                metabolic_rate_distribution: RandomDistribution::Uniform { min: 0, max: 0 },
+                max_age_distribution: RandomDistribution::Uniform { min: 2, max: 2 },
+                vision_distribution: RandomDistribution::Uniform { min: 1, max: 1 },
+            },
+        );
+        let state = world.step();
+        assert_eq!(
+            state,
+            HashMap::from([(
+                CellPosition { row: 0, col: 0 },
+                (CellLevel(0.0), AgentState(1, 3.0))
+            )])
+        );
     }
 }

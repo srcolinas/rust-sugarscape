@@ -3,7 +3,7 @@ use std::{fs::File, io::BufReader, path::PathBuf};
 use anyhow::{Context, Result};
 use clap::Parser;
 
-use sugarscape_sim::{SimulationConfig, World};
+use sugarscape_sim::{SimulationConfig, World, Writer};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -16,15 +16,19 @@ struct Cli {
     config: PathBuf,
 
     /// Output Parquet path (per-iteration aggregate stats)
-    #[arg(long, value_name = "FILE")]
+    #[arg(long, value_name = "FILE", default_value = "run.parquet")]
     output: PathBuf,
+
+    /// Buffer limit for writing Parquet
+    #[arg(long, value_name = "N", default_value = "1000")]
+    buffer_limit: usize,
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let config = read_config(&cli.config)
         .with_context(|| format!("Failed to read config from {}", cli.config.display()))?;
-    run_simulation(config);
+    run_simulation(config, cli.output, cli.buffer_limit)?;
     Ok(())
 }
 
@@ -36,9 +40,14 @@ fn read_config(path: &PathBuf) -> Result<SimulationConfig> {
     Ok(config)
 }
 
-pub fn run_simulation(config: SimulationConfig) {
+fn run_simulation(config: SimulationConfig, output: PathBuf, buffer_limit: usize) -> Result<()> {
     let mut world = World::new(&config.world, &config.agents);
-    for _ in 0..config.run.iterations {
-        world.step();
+    let mut writer = Writer::new(output, buffer_limit)?;
+    for step in 0..config.run.iterations {
+        let state = world.step();
+        writer.add(step, &state)?;
     }
+
+    writer.close()?;
+    Ok(())
 }
