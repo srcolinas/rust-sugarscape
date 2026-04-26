@@ -22,5 +22,3 @@ assert_cmd = "2"
 p-test = "1.0.2"
 tempfile = "3"
 
-[lints.rust]
-dead_code = "allow"

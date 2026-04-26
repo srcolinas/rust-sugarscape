@@ -2,3 +2,5 @@
 **/target
 *.parquet
 .DS_Store
+
+scratchpad/

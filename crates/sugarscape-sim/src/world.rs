@@ -155,7 +155,6 @@ impl World {
                 .retain(|cell, _| !cells_to_remove.contains(cell));
             self.locations.extend(updates);
 
-            
             self.consume_sugar()
         }
     }
