@@ -9,8 +9,8 @@ anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
-arrow = { version = "54", default-features = false, features = ["ipc"] }
-parquet = { version = "54", default-features = false, features = ["arrow"] }
+arrow.workspace = true
+parquet.workspace = true
 validator = { version = "0.20", features = ["derive"] }
 rand = "0.10.0"
 bimap = "0.6.3"

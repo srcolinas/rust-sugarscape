@@ -1,18 +1,17 @@
 [package]
-name = "sugarscape-viz"
+name = "sugarscape-gui"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-anyhow = "1"
-thiserror = "2.0.18"
-clap = { version = "4", features = ["derive"] }
 arrow.workspace = true
+eframe = "0.34.1"
+egui_plot = "0.35.0"
 parquet.workspace = true
-ratatui = "0.30.0"
-crossterm = "0.29.0"
-ratatui-plt = "0.0.2"
+rand = "0.10.0"
+sugarscape-sim = { path = "../sugarscape-sim" }
+thiserror = "2.0.18"
 
 [dev-dependencies]
 tempfile = "3.27.0"
